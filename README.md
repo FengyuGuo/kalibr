@@ -16,6 +16,83 @@ To install follow the [install wiki page](https://github.com/ethz-asl/kalibr/wik
 Please find more information on the [wiki pages](https://github.com/ethz-asl/kalibr/wiki) of this repository.
 For questions or comments, please open an issue on Github.
 
+## Omni-radtan to pinhole-equidistant conversion
+
+The repository provides `kalibr_convert_omni_radtan_to_pinhole_equi`, a tool
+for approximating a calibrated Kalibr `omni` + `radtan` camera with a
+`pinhole` + `equidistant` camera. It accepts either a single-camera YAML file
+or a camchain YAML file and preserves unrelated fields such as topics and
+camera-chain extrinsics.
+
+The conversion constructs model-based ray/pixel correspondences and fits the
+new model in pixel space:
+
+1. Unit 3D rays are sampled with uniform solid-angle density on a spherical
+   cap centered on the optical axis.
+2. The rays are projected using the source omni-radtan relation. Projections
+   outside the source image or outside the source model domain are discarded.
+3. The same rays are projected with the target pinhole-equidistant relation.
+4. SciPy nonlinear least squares with a linear loss minimizes the sum of
+   squared 2D pixel residuals while fitting
+   `[fu, fv, cu, cv, k1, k2, k3, k4]`.
+
+The default cap angle is 90 degrees (the front hemisphere). Angles in the open
+interval `(0, 180)` are accepted, so a slightly larger cap such as 92 degrees
+can be used for fisheye fitting.
+
+After building the workspace, run:
+
+```bash
+kalibr_convert_omni_radtan_to_pinhole_equi \
+  --input camchain.yaml \
+  --output camchain_pinhole_equi.yaml \
+  --camera cam0 \
+  --samples 50000 \
+  --max-angle-deg 92.0 \
+  --visualization-points 200 \
+  --plot-output projection_changes.png
+```
+
+The source-tree command can also be invoked directly:
+
+```bash
+aslam_offline_calibration/kalibr/python/kalibr_convert_omni_radtan_to_pinhole_equi \
+  -i camchain.yaml \
+  -o camchain_pinhole_equi.yaml
+```
+
+Important options:
+
+- `--camera CAM_ID`: convert only one camchain entry, for example `cam0`.
+  Without this option, every omni-radtan entry is converted.
+- `--samples N`: number of spherical-cap candidate rays. The default is
+  `50000`; only rays that project inside the source image participate in the
+  fit.
+- `--max-angle-deg ANGLE`: spherical-cap half angle in `(0, 180)`. The default
+  is `90`.
+- `--max-nfev N`: maximum number of least-squares function evaluations.
+- `--visualize`: open an interactive before/after projection figure.
+- `--plot-output FILE`: save the figure without requiring a display server.
+- `--visualization-points N`: maximum number of correspondences drawn in the
+  figure. The default is `250`; the complete fitting sample set is never drawn.
+
+The visualization contains two panels for each converted camera. The first
+shows the true omni-radtan and pinhole-equidistant pixel positions. The second
+shows a displacement vector field for the same small subset. Since a good fit
+usually has subpixel residuals, vector arrows are automatically magnified for
+readability; the magnification is stated in the title, while the color bar and
+reported RMS continue to show the true, unscaled pixel displacement.
+
+> **Angles above 90 degrees:** rays beyond 90 degrees are included in the
+> mathematical fit and visualization. However, Kalibr's C++ pinhole projection
+> considers rays with `z <= 0` not visible. The command prints a warning when
+> such an angle is requested. Use the resulting model with this runtime
+> visibility limitation in mind.
+
+At completion the tool prints the number of valid samples, pixel-error RMS,
+mean, 95th percentile, maximum, SSE, and optimizer evaluation count. The output
+YAML uses `camera_model: pinhole` and `distortion_model: equidistant`.
+
 
 ## News / Events
 
