@@ -75,7 +75,7 @@ class CameraChainValidator(object):
             #create a mono instance for each cam (detection and mono view)
             monovalidator = MonoCameraValidator(camConfig, targetParams)
             cv2.namedWindow(monovalidator.windowName, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(monovalidator.windowName, (640, 480))
+            cv2.resizeWindow(monovalidator.windowName, 640, 480)
             self.monovalidators.append(monovalidator)
             
             #add edges to overlap graph
@@ -107,7 +107,7 @@ class CameraChainValidator(object):
             cidx_dest = edge.target
             windowName = "Rectified view (cam{0} and cam{1})".format(cidx_src, cidx_dest)
             cv2.namedWindow(windowName, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(windowName, (2*640, 480))
+            cv2.resizeWindow(windowName, 2*640, 480)
                 
         #register the callback for the synchronized images
         sync_sub = message_filters.ApproximateTimeSynchronizer([val.image_sub for val in self.monovalidators], 10, 0.02)

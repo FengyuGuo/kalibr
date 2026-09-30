@@ -211,7 +211,10 @@ if __name__ == "__main__":
         sys.exit(0)
             
     #write to file
-    c.writePDFfile(parsed.output)
-    
+    # c.writePDFfile(parsed.output)
+    d = document.document()
+    d.append(document.page(c, bboxenlarge=10 * unit.t_mm))
+    d.writePDFfile(parsed.output)
+        
     if parsed.do_eps:
         c.writeEPSfile(parsed.output)

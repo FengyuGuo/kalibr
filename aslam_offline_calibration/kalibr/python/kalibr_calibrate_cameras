@@ -273,6 +273,9 @@ def main():
                 for bidx, baseline in enumerate(calibrator.baselines):
                     est_baselines.append( sm.Transformation(baseline.T()) )
                 T_tc_guess = graph.getTargetPoseGuess(timestamp, cameraList, est_baselines)
+                if T_tc_guess is None:
+                    sm.logWarn("Skipping view at timestamp {0}: failed to initialize target pose".format(timestamp))
+                    continue
                                
                 success = calibrator.addTargetView(timestamp, obs_tuple, T_tc_guess)
                 

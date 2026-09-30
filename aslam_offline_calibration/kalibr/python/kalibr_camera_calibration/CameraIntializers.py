@@ -318,6 +318,9 @@ def solveFullBatch(cameras, baseline_guesses, graph):
 
         #create a target pose dv for all target views (= T_cam0_w)
         T0 = graph.getTargetPoseGuess(timestamp, cameras, baseline_guesses)
+        if T0 is None:
+            sm.logWarn("Skipping initialization view at timestamp {0}: failed to initialize target pose".format(timestamp))
+            continue
         target_pose_dv = addPoseDesignVariable(problem, T0)
         target_pose_dvs.append(target_pose_dv)
         
