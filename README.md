@@ -101,7 +101,10 @@ boundaries through an omni camera. By default it draws full FOV values
 `90, 105, 120, 135, 150, 165, 180` degrees. A full FOV value is converted to a
 ray angle using `theta = FOV / 2`; consequently the 180-degree ring is the
 `z=0` front-hemisphere boundary. Radtan distortion is applied to every ring, so
-the rendered curves follow the actual camera model.
+the rendered curves follow the actual camera model. Two additional FOV 90
+degree rings are drawn around optical axes yawed 45 degrees to the left and
+right. These side rings show the boundaries of two neighboring views, rather
+than additional forward-axis FOV values.
 
 Pass intrinsics directly:
 
@@ -124,15 +127,19 @@ kalibr_visualize_omni_hemisphere_boundary \
   --show
 ```
 
-The rings use progressively brighter shades of green by default and the
-principal point is marked in red. The description and FOV legend are rendered
-in a separate banner above the image, so they never cover source-image pixels.
+The forward-axis rings use progressively brighter shades of green by default;
+the left and right rings use cyan and orange, and the principal point is marked
+in red. The description and FOV legend are rendered in a separate banner above
+the image, so they never cover source-image pixels.
 Use `--fov-angles DEG [DEG ...]` to choose the rings and use `--color R G B`,
 `--thickness`, and `--points` to adjust rendering;
+`--side-fov` and `--side-axis-angle` adjust the two side rings, while
+`--no-side-rings` disables them. The yaw angle is interpreted in camera
+coordinates: negative is image-left and positive is image-right.
 `--no-label` and `--no-principal-point` disable the annotations. If `--output`
 is omitted, the tool writes `<input>_omni_hemisphere_boundary.<extension>`.
 The command reports how many boundary segments intersect the image and warns if
-the projected 90-degree boundary lies completely outside it.
+none of the projected rings intersects it.
 
 ## News / Events
 

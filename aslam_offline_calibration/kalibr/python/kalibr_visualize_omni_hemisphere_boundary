@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Overlay an omni camera's 90-degree hemisphere boundary on an image."""
+"""Overlay forward and side-axis FOV boundaries for an omni camera."""
 
 from __future__ import print_function
 
@@ -43,6 +43,15 @@ def _arguments():
         "--fov-angles", type=float, nargs="+", default=DEFAULT_FOV_ANGLES,
         metavar="DEG",
         help="full FOV guide rings (default: 90 105 ... 180)")
+    parser.add_argument(
+        "--side-fov", type=float, default=90.0, metavar="DEG",
+        help="full FOV of both side-axis rings (default: 90)")
+    parser.add_argument(
+        "--side-axis-angle", type=float, default=45.0, metavar="DEG",
+        help="absolute yaw of left/right optical axes (default: 45)")
+    parser.add_argument(
+        "--no-side-rings", action="store_true",
+        help="do not draw the left/right side-axis rings")
     parser.add_argument("--thickness", type=int, default=2,
                         help="boundary line thickness in pixels (default: 2)")
     parser.add_argument(
@@ -114,7 +123,10 @@ def main():
             color=(blue, green, red), thickness=arguments.thickness,
             draw_label=not arguments.no_label,
             draw_principal_point=not arguments.no_principal_point,
-            fov_angles=arguments.fov_angles)
+            fov_angles=arguments.fov_angles,
+            draw_side_rings=not arguments.no_side_rings,
+            side_fov_degrees=arguments.side_fov,
+            side_axis_yaw_degrees=arguments.side_axis_angle)
         output_directory = os.path.dirname(os.path.abspath(output_path))
         if not os.path.isdir(output_directory):
             raise ValueError("output directory does not exist: {}".format(
@@ -126,14 +138,21 @@ def main():
         print("error: {}".format(error), file=sys.stderr)
         return 1
 
+    ring_count = len(stats["rings"]) + len(stats["side_rings"])
     print("{}: {} FOV rings; {} rendered segments touch image".format(
-        label, len(stats["rings"]), stats["rendered_segments"]))
+        label, ring_count, stats["rendered_segments"]))
     for ring in stats["rings"]:
         print("  FOV {:g} deg (theta {:g} deg): {} segments, "
               "ideal semi-axes {:.3f}px x {:.3f}px".format(
                   ring["fov_degrees"], ring["theta_degrees"],
                   ring["rendered_segments"], ring["ideal_radius_u"],
                   ring["ideal_radius_v"]))
+    for ring in stats["side_rings"]:
+        print("  {} yaw {:+g} deg, FOV {:g} deg (theta {:g} deg): "
+              "{} segments".format(
+                  ring["name"], ring["axis_yaw_degrees"],
+                  ring["fov_degrees"], ring["theta_degrees"],
+                  ring["rendered_segments"]))
     if stats["rendered_segments"] == 0:
         print("warning: none of the projected FOV rings intersects the image",
               file=sys.stderr)

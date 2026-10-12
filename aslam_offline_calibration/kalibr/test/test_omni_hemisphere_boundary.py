@@ -18,6 +18,7 @@ from omni_hemisphere_boundary import (  # noqa: E402
     draw_hemisphere_boundary,
     project_fov_boundary,
     project_hemisphere_boundary,
+    project_oriented_fov_boundary,
     select_yaml_camera,
 )
 
@@ -51,6 +52,15 @@ class OmniHemisphereBoundaryTest(unittest.TestCase):
                                    expected_radius ** 2,
                                    rtol=0.0, atol=1e-12)
 
+    def test_yawed_45_degree_fov_90_boundary_crosses_principal_point(self):
+        center = np.array([160.0, 120.0])
+        for yaw_degrees in (-45.0, 45.0):
+            pixels, finite = project_oriented_fov_boundary(
+                example_camera(), 90.0, yaw_degrees, 720)
+            self.assertTrue(np.all(finite))
+            distance = np.linalg.norm(pixels - center, axis=1)
+            self.assertLess(np.min(distance), 1e-10)
+
     def test_overlay_draws_boundary_and_principal_point(self):
         image = np.zeros((240, 320, 3), dtype=np.uint8)
         overlay, stats = draw_hemisphere_boundary(
@@ -58,6 +68,13 @@ class OmniHemisphereBoundaryTest(unittest.TestCase):
         self.assertGreater(stats["rendered_segments"], 600)
         self.assertEqual([ring["fov_degrees"] for ring in stats["rings"]],
                          list(DEFAULT_FOV_ANGLES))
+        self.assertEqual(len(stats["side_rings"]), 2)
+        self.assertEqual(
+            [ring["axis_yaw_degrees"] for ring in stats["side_rings"]],
+            [-45.0, 45.0])
+        self.assertEqual(
+            [ring["fov_degrees"] for ring in stats["side_rings"]],
+            [90.0, 90.0])
         self.assertGreater(np.count_nonzero(overlay), 0)
         self.assertEqual(overlay.shape[1], image.shape[1])
         self.assertGreater(overlay.shape[0], image.shape[0])
@@ -72,8 +89,9 @@ class OmniHemisphereBoundaryTest(unittest.TestCase):
 
         _custom, custom_stats = draw_hemisphere_boundary(
             image, example_camera(), sample_count=720, draw_label=False,
-            fov_angles=[90.0, 180.0])
+            fov_angles=[90.0, 180.0], draw_side_rings=False)
         self.assertEqual(len(custom_stats["rings"]), 2)
+        self.assertEqual(custom_stats["side_rings"], [])
 
     def test_camchain_requires_selection_when_multiple_omni_cameras(self):
         configuration = {"cam0": example_camera(), "cam1": example_camera()}
