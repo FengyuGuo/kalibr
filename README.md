@@ -94,6 +94,46 @@ mean, 95th percentile, maximum, SSE, and optimizer evaluation count. The output
 YAML uses `camera_model: pinhole` and `distortion_model: equidistant`.
 
 
+### Omni hemisphere boundary overlay
+
+`kalibr_visualize_omni_hemisphere_boundary` projects several full-FOV cone
+boundaries through an omni camera. By default it draws full FOV values
+`90, 105, 120, 135, 150, 165, 180` degrees. A full FOV value is converted to a
+ray angle using `theta = FOV / 2`; consequently the 180-degree ring is the
+`z=0` front-hemisphere boundary. Radtan distortion is applied to every ring, so
+the rendered curves follow the actual camera model.
+
+Pass intrinsics directly:
+
+```bash
+kalibr_visualize_omni_hemisphere_boundary \
+  --intrinsics 0.82 410.0 405.0 319.0 241.0 \
+  --distortion-coeffs -0.015 0.002 0.0003 -0.0002 \
+  --image frame.png \
+  --output frame_hemisphere_boundary.png
+```
+
+Or read a camera from a Kalibr YAML/camchain:
+
+```bash
+kalibr_visualize_omni_hemisphere_boundary \
+  --camera-yaml camchain.yaml \
+  --camera cam0 \
+  --image frame.png \
+  --output frame_hemisphere_boundary.png \
+  --show
+```
+
+The rings use progressively brighter shades of green by default and the
+principal point is marked in red. The description and FOV legend are rendered
+in a separate banner above the image, so they never cover source-image pixels.
+Use `--fov-angles DEG [DEG ...]` to choose the rings and use `--color R G B`,
+`--thickness`, and `--points` to adjust rendering;
+`--no-label` and `--no-principal-point` disable the annotations. If `--output`
+is omitted, the tool writes `<input>_omni_hemisphere_boundary.<extension>`.
+The command reports how many boundary segments intersect the image and warns if
+the projected 90-degree boundary lies completely outside it.
+
 ## News / Events
 
 * **Nov 24, 2022** - Some new visualization of trajectory and IMU rate for the generated report along with fixed support for exporting poses to file (see PR [#578](https://github.com/ethz-asl/kalibr/pull/578),[#581](https://github.com/ethz-asl/kalibr/pull/581),[#582](https://github.com/ethz-asl/kalibr/pull/582))

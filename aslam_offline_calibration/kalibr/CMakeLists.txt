@@ -79,5 +79,6 @@ catkin_install_python(
     python/kalibr_create_target_pdf
     python/kalibr_calibrate_rs_cameras
     python/kalibr_convert_omni_radtan_to_pinhole_equi
+    python/kalibr_visualize_omni_hemisphere_boundary
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

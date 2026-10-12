@@ -9,7 +9,8 @@ setup_args = generate_distutils_setup(
               'kalibr_common',
               'kalibr_camera_calibration',
               'kalibr_imu_camera_calibration'],
-    py_modules=['omni_radtan_to_pinhole_equi'],
+    py_modules=['omni_radtan_to_pinhole_equi',
+                'omni_hemisphere_boundary'],
     package_dir={'':'python'}
 )
 

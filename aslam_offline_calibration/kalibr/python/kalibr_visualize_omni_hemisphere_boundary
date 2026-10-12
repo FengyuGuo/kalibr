@@ -1,0 +1,154 @@
+#!/usr/bin/env python
+"""Overlay an omni camera's 90-degree hemisphere boundary on an image."""
+
+from __future__ import print_function
+
+import argparse
+import os
+import sys
+
+import cv2
+import yaml
+
+from omni_hemisphere_boundary import (
+    DEFAULT_FOV_ANGLES,
+    draw_hemisphere_boundary,
+    normalized_camera,
+    select_yaml_camera,
+)
+
+
+def _arguments():
+    parser = argparse.ArgumentParser(
+        description=("Project full-FOV guide rings through an omni model "
+                     "and draw them on an image."))
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--camera-yaml", help="Kalibr camera/camchain YAML")
+    source.add_argument(
+        "--intrinsics", type=float, nargs=5,
+        metavar=("XI", "FU", "FV", "CU", "CV"),
+        help="direct omni intrinsics: xi fu fv cu cv")
+    parser.add_argument("--camera", help="camera key in a camchain, e.g. cam0")
+    parser.add_argument(
+        "--distortion-coeffs", type=float, nargs=4,
+        metavar=("K1", "K2", "P1", "P2"), default=None,
+        help="radtan coefficients for direct intrinsics (default: all zero)")
+    parser.add_argument("--image", "-i", required=True, help="input image")
+    parser.add_argument(
+        "--output", "-o",
+        help="output overlay image (default: <input>_omni_hemisphere_boundary)")
+    parser.add_argument("--points", type=int, default=1440,
+                        help="samples per FOV ring (default: 1440)")
+    parser.add_argument(
+        "--fov-angles", type=float, nargs="+", default=DEFAULT_FOV_ANGLES,
+        metavar="DEG",
+        help="full FOV guide rings (default: 90 105 ... 180)")
+    parser.add_argument("--thickness", type=int, default=2,
+                        help="boundary line thickness in pixels (default: 2)")
+    parser.add_argument(
+        "--color", type=int, nargs=3, metavar=("R", "G", "B"),
+        default=[0, 255, 0],
+        help="outer-ring RGB color; inner rings are darker (default: green)")
+    parser.add_argument("--show", action="store_true",
+                        help="display the overlay and wait for a key press")
+    parser.add_argument("--no-label", action="store_true",
+                        help="do not draw the boundary description")
+    parser.add_argument("--no-principal-point", action="store_true",
+                        help="do not draw the red principal-point marker")
+    return parser.parse_args()
+
+
+def _default_output(image_path):
+    stem, extension = os.path.splitext(image_path)
+    if not extension:
+        extension = ".png"
+    return stem + "_omni_hemisphere_boundary" + extension
+
+
+def main():
+    arguments = _arguments()
+    output_path = arguments.output or _default_output(arguments.image)
+    if os.path.abspath(output_path) == os.path.abspath(arguments.image):
+        print("error: output path must differ from input image", file=sys.stderr)
+        return 2
+    if arguments.points < 32:
+        print("error: --points must be at least 32", file=sys.stderr)
+        return 2
+
+    try:
+        image = cv2.imread(arguments.image, cv2.IMREAD_UNCHANGED)
+        if image is None:
+            raise ValueError("could not read image: {}".format(arguments.image))
+        height, width = image.shape[:2]
+
+        if arguments.camera_yaml:
+            if arguments.distortion_coeffs is not None:
+                raise ValueError(
+                    "--distortion-coeffs is only valid with --intrinsics")
+            with open(arguments.camera_yaml, "r") as stream:
+                configuration = yaml.safe_load(stream)
+            label, camera = select_yaml_camera(configuration, arguments.camera)
+            camera = normalized_camera(camera)
+            yaml_width, yaml_height = camera["resolution"]
+            if yaml_width != width or yaml_height != height:
+                print(
+                    "warning: YAML resolution {}x{} differs from image {}x{}".format(
+                        yaml_width, yaml_height, width, height), file=sys.stderr)
+        else:
+            if arguments.camera is not None:
+                raise ValueError("--camera is only valid with --camera-yaml")
+            label = "camera"
+            camera = normalized_camera({
+                "camera_model": "omni",
+                "intrinsics": arguments.intrinsics,
+                "distortion_model": "radtan",
+                "distortion_coeffs": (arguments.distortion_coeffs or
+                                        [0.0, 0.0, 0.0, 0.0]),
+                "resolution": [width, height],
+            })
+
+        # CLI color is RGB; OpenCV drawing uses BGR.
+        red, green, blue = arguments.color
+        overlay, stats = draw_hemisphere_boundary(
+            image, camera, sample_count=arguments.points,
+            color=(blue, green, red), thickness=arguments.thickness,
+            draw_label=not arguments.no_label,
+            draw_principal_point=not arguments.no_principal_point,
+            fov_angles=arguments.fov_angles)
+        output_directory = os.path.dirname(os.path.abspath(output_path))
+        if not os.path.isdir(output_directory):
+            raise ValueError("output directory does not exist: {}".format(
+                output_directory))
+        if not cv2.imwrite(output_path, overlay):
+            raise IOError("failed to write image: {}".format(output_path))
+    except (cv2.error, IOError, OSError, RuntimeError, TypeError, ValueError,
+            yaml.YAMLError) as error:
+        print("error: {}".format(error), file=sys.stderr)
+        return 1
+
+    print("{}: {} FOV rings; {} rendered segments touch image".format(
+        label, len(stats["rings"]), stats["rendered_segments"]))
+    for ring in stats["rings"]:
+        print("  FOV {:g} deg (theta {:g} deg): {} segments, "
+              "ideal semi-axes {:.3f}px x {:.3f}px".format(
+                  ring["fov_degrees"], ring["theta_degrees"],
+                  ring["rendered_segments"], ring["ideal_radius_u"],
+                  ring["ideal_radius_v"]))
+    if stats["rendered_segments"] == 0:
+        print("warning: none of the projected FOV rings intersects the image",
+              file=sys.stderr)
+    print("wrote {}".format(output_path))
+
+    if arguments.show:
+        try:
+            cv2.imshow("omni hemisphere boundary", overlay)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        except cv2.error as error:
+            print("error: could not show image: {}".format(error), file=sys.stderr)
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
