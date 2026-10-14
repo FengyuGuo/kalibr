@@ -98,13 +98,16 @@ YAML uses `camera_model: pinhole` and `distortion_model: equidistant`.
 
 `kalibr_visualize_omni_hemisphere_boundary` projects several full-FOV cone
 boundaries through an omni camera. By default it draws full FOV values
-`90, 105, 120, 135, 150, 165, 180` degrees. A full FOV value is converted to a
+`90, 120, 150, 180` degrees. A full FOV value is converted to a
 ray angle using `theta = FOV / 2`; consequently the 180-degree ring is the
 `z=0` front-hemisphere boundary. Radtan distortion is applied to every ring, so
 the rendered curves follow the actual camera model. Two additional FOV 90
 degree rings are drawn around optical axes yawed 45 degrees to the left and
-right. These side rings show the boundaries of two neighboring views, rather
-than additional forward-axis FOV values.
+right. Two more FOV 90 degree rings use left/right yaw angles of 90 degrees.
+For these lateral rings, only 3D rays whose angle from the original forward
+optical axis is strictly less than 95 degrees are projected; the remaining
+parts of the rings are omitted. These side rings show the boundaries of
+neighboring views, rather than additional forward-axis FOV values.
 
 Pass intrinsics directly:
 
@@ -125,16 +128,20 @@ kalibr_visualize_omni_hemisphere_boundary \
   --image frame.png \
   --output frame_hemisphere_boundary.png \
   --show
+
+rosrun kalibr kalibr_visualize_omni_hemisphere_boundary --camera-yaml /media/guo/fs/insta360/calibration/kalibr_1inch_2/calib1-camchain.yaml -i /media/guo/fs/insta360/office/000477.jpg --camera cam0
 ```
 
-The forward-axis rings use progressively brighter shades of green by default;
-the left and right rings use cyan and orange, and the principal point is marked
-in red. The description and FOV legend are rendered in a separate banner above
-the image, so they never cover source-image pixels.
+The forward-axis rings use progressively brighter shades of green by default.
+The yawed rings use distinct cyan, orange, magenta, and yellow colors, and the
+principal point is marked in red. The description and FOV legend are rendered
+in a separate banner above the image, so they never cover source-image pixels.
 Use `--fov-angles DEG [DEG ...]` to choose the rings and use `--color R G B`,
 `--thickness`, and `--points` to adjust rendering;
 `--side-fov` and `--side-axis-angle` adjust the two side rings, while
-`--no-side-rings` disables them. The yaw angle is interpreted in camera
+`--lateral-fov`, `--lateral-axis-angle`, and `--lateral-max-angle` adjust the
+two lateral rings and their forward-axis angle cutoff. `--no-side-rings`
+disables all four yawed rings. The yaw angle is interpreted in camera
 coordinates: negative is image-left and positive is image-right.
 `--no-label` and `--no-principal-point` disable the annotations. If `--output`
 is omitted, the tool writes `<input>_omni_hemisphere_boundary.<extension>`.

@@ -42,13 +42,22 @@ def _arguments():
     parser.add_argument(
         "--fov-angles", type=float, nargs="+", default=DEFAULT_FOV_ANGLES,
         metavar="DEG",
-        help="full FOV guide rings (default: 90 105 ... 180)")
+        help="full FOV guide rings (default: 90 120 150 180)")
     parser.add_argument(
         "--side-fov", type=float, default=90.0, metavar="DEG",
         help="full FOV of both side-axis rings (default: 90)")
     parser.add_argument(
         "--side-axis-angle", type=float, default=45.0, metavar="DEG",
         help="absolute yaw of left/right optical axes (default: 45)")
+    parser.add_argument(
+        "--lateral-fov", type=float, default=90.0, metavar="DEG",
+        help="full FOV of the lateral-axis rings (default: 90)")
+    parser.add_argument(
+        "--lateral-axis-angle", type=float, default=90.0, metavar="DEG",
+        help="absolute yaw of lateral optical axes (default: 90)")
+    parser.add_argument(
+        "--lateral-max-angle", type=float, default=95.0, metavar="DEG",
+        help="strict forward-axis angle limit for lateral rings (default: 95)")
     parser.add_argument(
         "--no-side-rings", action="store_true",
         help="do not draw the left/right side-axis rings")
@@ -126,7 +135,10 @@ def main():
             fov_angles=arguments.fov_angles,
             draw_side_rings=not arguments.no_side_rings,
             side_fov_degrees=arguments.side_fov,
-            side_axis_yaw_degrees=arguments.side_axis_angle)
+            side_axis_yaw_degrees=arguments.side_axis_angle,
+            lateral_fov_degrees=arguments.lateral_fov,
+            lateral_axis_yaw_degrees=arguments.lateral_axis_angle,
+            lateral_max_view_angle_degrees=arguments.lateral_max_angle)
         output_directory = os.path.dirname(os.path.abspath(output_path))
         if not os.path.isdir(output_directory):
             raise ValueError("output directory does not exist: {}".format(
@@ -148,10 +160,13 @@ def main():
                   ring["rendered_segments"], ring["ideal_radius_u"],
                   ring["ideal_radius_v"]))
     for ring in stats["side_rings"]:
-        print("  {} yaw {:+g} deg, FOV {:g} deg (theta {:g} deg): "
+        angle_limit = ring["max_view_angle_degrees"]
+        limit_text = (", view angle <{:g} deg".format(angle_limit)
+                      if angle_limit is not None else "")
+        print("  {} yaw {:+g} deg, FOV {:g} deg (theta {:g} deg){}: "
               "{} segments".format(
                   ring["name"], ring["axis_yaw_degrees"],
-                  ring["fov_degrees"], ring["theta_degrees"],
+                  ring["fov_degrees"], ring["theta_degrees"], limit_text,
                   ring["rendered_segments"]))
     if stats["rendered_segments"] == 0:
         print("warning: none of the projected FOV rings intersects the image",

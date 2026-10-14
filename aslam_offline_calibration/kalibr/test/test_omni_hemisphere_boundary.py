@@ -61,6 +61,19 @@ class OmniHemisphereBoundaryTest(unittest.TestCase):
             distance = np.linalg.norm(pixels - center, axis=1)
             self.assertLess(np.min(distance), 1e-10)
 
+    def test_lateral_ring_rejects_rays_at_or_beyond_95_degrees(self):
+        sample_count = 720
+        _pixels, finite = project_oriented_fov_boundary(
+            example_camera(), 90.0, 90.0, sample_count,
+            max_view_angle_degrees=95.0)
+        azimuth = np.linspace(
+            0.0, 2.0 * math.pi, sample_count, endpoint=False)
+        ray_z = -math.sin(math.radians(45.0)) * np.cos(azimuth)
+        expected = ray_z > math.cos(math.radians(95.0))
+        np.testing.assert_array_equal(finite, expected)
+        self.assertGreater(np.count_nonzero(finite), 0)
+        self.assertLess(np.count_nonzero(finite), sample_count)
+
     def test_overlay_draws_boundary_and_principal_point(self):
         image = np.zeros((240, 320, 3), dtype=np.uint8)
         overlay, stats = draw_hemisphere_boundary(
@@ -68,13 +81,20 @@ class OmniHemisphereBoundaryTest(unittest.TestCase):
         self.assertGreater(stats["rendered_segments"], 600)
         self.assertEqual([ring["fov_degrees"] for ring in stats["rings"]],
                          list(DEFAULT_FOV_ANGLES))
-        self.assertEqual(len(stats["side_rings"]), 2)
+        self.assertEqual(len(stats["side_rings"]), 4)
         self.assertEqual(
             [ring["axis_yaw_degrees"] for ring in stats["side_rings"]],
-            [-45.0, 45.0])
+            [-45.0, 45.0, -90.0, 90.0])
         self.assertEqual(
             [ring["fov_degrees"] for ring in stats["side_rings"]],
-            [90.0, 90.0])
+            [90.0, 90.0, 90.0, 90.0])
+        self.assertEqual(
+            [ring["max_view_angle_degrees"]
+             for ring in stats["side_rings"]],
+            [None, None, 95.0, 95.0])
+        for ring in stats["side_rings"][2:]:
+            self.assertGreater(ring["finite_samples"], 0)
+            self.assertLess(ring["finite_samples"], 720)
         self.assertGreater(np.count_nonzero(overlay), 0)
         self.assertEqual(overlay.shape[1], image.shape[1])
         self.assertGreater(overlay.shape[0], image.shape[0])

@@ -99,11 +99,14 @@ def _project_unit_rays(camera, rays):
 
 
 def project_oriented_fov_boundary(camera, fov_degrees, axis_yaw_degrees,
-                                  sample_count=1440):
+                                  sample_count=1440,
+                                  max_view_angle_degrees=None):
     """Project a full-FOV cone whose optical axis is yawed left or right.
 
     Positive yaw points toward positive camera x (image right); negative yaw
     points toward image left. ``fov_degrees`` is the complete cone angle.
+    If set, ``max_view_angle_degrees`` rejects rays whose angle relative to
+    the original forward optical axis is greater than or equal to the limit.
     """
     if sample_count < 32:
         raise ValueError("at least 32 boundary samples are required")
@@ -113,6 +116,11 @@ def project_oriented_fov_boundary(camera, fov_degrees, axis_yaw_degrees,
         raise ValueError("full FOV angle must be in (0, 180]")
     if not np.isfinite(axis_yaw_degrees):
         raise ValueError("axis yaw must be finite")
+    if max_view_angle_degrees is not None:
+        max_view_angle_degrees = float(max_view_angle_degrees)
+        if (not np.isfinite(max_view_angle_degrees) or
+                not 0.0 < max_view_angle_degrees <= 180.0):
+            raise ValueError("maximum view angle must be in (0, 180]")
 
     theta = math.radians(0.5 * fov_degrees)
     yaw = math.radians(axis_yaw_degrees)
@@ -124,7 +132,12 @@ def project_oriented_fov_boundary(camera, fov_degrees, axis_yaw_degrees,
             math.sin(theta) *
             (np.cos(azimuth)[:, None] * horizontal[None, :] +
              np.sin(azimuth)[:, None] * vertical[None, :]))
-    return _project_unit_rays(camera, rays)
+    pixels, finite = _project_unit_rays(camera, rays)
+    if max_view_angle_degrees is not None:
+        cosine_limit = math.cos(math.radians(max_view_angle_degrees))
+        ray_norm = np.linalg.norm(rays, axis=1)
+        finite &= rays[:, 2] / ray_norm > cosine_limit
+    return pixels, finite
 
 
 def project_fov_boundary(camera, fov_degrees, sample_count=1440):
@@ -167,7 +180,10 @@ def draw_hemisphere_boundary(image, camera, sample_count=1440,
                              draw_label=True, draw_principal_point=True,
                              fov_angles=None, draw_side_rings=True,
                              side_fov_degrees=90.0,
-                             side_axis_yaw_degrees=45.0):
+                             side_axis_yaw_degrees=45.0,
+                             lateral_fov_degrees=90.0,
+                             lateral_axis_yaw_degrees=90.0,
+                             lateral_max_view_angle_degrees=95.0):
     """Draw multiple full-FOV guide rings and return image/statistics."""
     if image is None or not isinstance(image, np.ndarray) or image.size == 0:
         raise ValueError("image must be a non-empty numpy array")
@@ -219,20 +235,33 @@ def draw_hemisphere_boundary(image, camera, sample_count=1440,
     if draw_side_rings:
         side_fov_degrees = float(side_fov_degrees)
         side_axis_yaw_degrees = abs(float(side_axis_yaw_degrees))
+        lateral_fov_degrees = float(lateral_fov_degrees)
+        lateral_axis_yaw_degrees = abs(float(lateral_axis_yaw_degrees))
+        lateral_max_view_angle_degrees = float(
+            lateral_max_view_angle_degrees)
         side_specs = (
-            ("LEFT", -side_axis_yaw_degrees, (255, 180, 0)),
-            ("RIGHT", side_axis_yaw_degrees, (0, 128, 255)),
+            ("LEFT", -side_axis_yaw_degrees, side_fov_degrees,
+             None, (255, 180, 0)),
+            ("RIGHT", side_axis_yaw_degrees, side_fov_degrees,
+             None, (0, 128, 255)),
+            ("LEFT", -lateral_axis_yaw_degrees, lateral_fov_degrees,
+             lateral_max_view_angle_degrees, (255, 0, 255)),
+            ("RIGHT", lateral_axis_yaw_degrees, lateral_fov_degrees,
+             lateral_max_view_angle_degrees, (0, 255, 255)),
         )
-        for name, yaw_degrees, side_color in side_specs:
+        for (name, yaw_degrees, ring_fov_degrees,
+             max_view_angle_degrees, side_color) in side_specs:
             pixels, finite = project_oriented_fov_boundary(
-                camera, side_fov_degrees, yaw_degrees, sample_count)
+                camera, ring_fov_degrees, yaw_degrees, sample_count,
+                max_view_angle_degrees=max_view_angle_degrees)
             rendered_segments = _draw_projected_curve(
                 output, pixels, finite, side_color, thickness)
             side_rings.append({
                 "name": name,
                 "axis_yaw_degrees": float(yaw_degrees),
-                "fov_degrees": float(side_fov_degrees),
-                "theta_degrees": float(0.5 * side_fov_degrees),
+                "fov_degrees": float(ring_fov_degrees),
+                "theta_degrees": float(0.5 * ring_fov_degrees),
+                "max_view_angle_degrees": max_view_angle_degrees,
                 "finite_samples": int(np.count_nonzero(finite)),
                 "rendered_segments": int(rendered_segments),
                 "color": side_color,
@@ -266,8 +295,11 @@ def draw_hemisphere_boundary(image, camera, sample_count=1440,
             ("FOV {:g} deg".format(fov_degrees), ring_color)
             for fov_degrees, ring_color in zip(angles, ring_colors)]
         legend_specs.extend([
-            ("{} yaw {:+g} deg / FOV {:g} deg".format(
-                ring["name"], ring["axis_yaw_degrees"], ring["fov_degrees"]),
+            ("{} yaw {:+g} deg / FOV {:g} deg{}".format(
+                ring["name"], ring["axis_yaw_degrees"], ring["fov_degrees"],
+                (" / view <{:g} deg".format(
+                    ring["max_view_angle_degrees"])
+                 if ring["max_view_angle_degrees"] is not None else "")),
              ring["color"])
             for ring in side_rings])
         for text, ring_color in legend_specs:
